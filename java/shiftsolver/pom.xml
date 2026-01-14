@@ -50,6 +50,40 @@
       <artifactId>optaplanner-test</artifactId>
       <scope>test</scope>
     </dependency>
+
+
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi</artifactId>
+      <version>5.2.5</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>5.2.5</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-api</artifactId>
+      <version>2.25.3</version>
+    </dependency>
+
+    <!-- Log4j2 Core Implementation (MISSING!) -->
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-core</artifactId>
+      <version>2.25.3</version>
+    </dependency>
+
+
+    <dependency>
+      <groupId>org.apache.xmlbeans</groupId>
+      <artifactId>xmlbeans</artifactId>
+      <version>5.0.2</version>
+    </dependency>
+
+
   </dependencies>
 
   <build>
