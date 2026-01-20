@@ -25,7 +25,7 @@ public class ShiftPlannerApp {
                 .withTerminationSpentLimit(Duration.ofSeconds(20)));
 
 
-        String filePath = "testSmall.xlsx"; // Update with your file path
+        String filePath = "feb26.xlsx"; // Update with your file path
         ExcelHandler handler = new ExcelHandler(filePath);
         Shiftplan plan = handler.ShiftPlanFromExcelFile();
         //Shiftplan plan = generateData();
@@ -40,7 +40,7 @@ public class ShiftPlannerApp {
                 .withSolutionClass(Shiftplan.class)
                 .withEntityClasses(ShiftAssignment.class)
                 .withConstraintProviderClass(ShiftPlannerConstraintProvider.class)
-                .withTerminationSpentLimit(Duration.ofSeconds(20)));
+                .withTerminationSpentLimit(Duration.ofSeconds(60)));
 
         ExcelHandler handler = new ExcelHandler(filePath);
         Shiftplan plan = handler.ShiftPlanFromExcelFile();

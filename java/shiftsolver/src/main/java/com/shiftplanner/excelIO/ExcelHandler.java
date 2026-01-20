@@ -1,6 +1,7 @@
 package com.shiftplanner.excelIO;
 
 import com.shiftplanner.domain.*;
+import org.apache.poi.hssf.util.HSSFColor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
@@ -53,8 +54,6 @@ public class ExcelHandler {
                 .filter(t -> t.getDuration()==null)
                 .map(TimeSlot::getId)
                 .forEach(System.out::println);
-        LocalDate date = LocalDate.now();
-        System.out.print(date.getDayOfWeek().getDisplayName()
     }
 
     private void loadWorkbook() {

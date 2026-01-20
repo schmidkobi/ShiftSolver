@@ -12,11 +12,11 @@ public class TimeSlot implements Comparable<TimeSlot> {
 
     public TimeSlot() {}
 
-    public TimeSlot(int id, Duration duration, String type, boolean isWeekend) {
+    public TimeSlot(int id, Duration duration, String type) {
         this.id = id;
         this.duration = duration;
         this.type = type;
-        this.isWeekend = isWeekend;
+        //this.isWeekend = isWeekend;
     }
 
     public int getId() {
@@ -63,34 +63,35 @@ public class TimeSlot implements Comparable<TimeSlot> {
         List<Integer> test = new ArrayList<>();
         timeSlots.sort(TimeSlot::compareTo);
         for(int i = 0; i < timeSlots.size(); i++) {
-            test.add(timeSlots.get(i).getId());
+            //test.add(timeSlots.get(i).getId());
             if ( (i == 0 || timeSlots.get(i).getId() == timeSlots.get(i-1).getId() + 1)){
                 consecutive.add(timeSlots.get(i));
             }
             else {
-                if (consecutive.size() >  threshold){
-                    result+=consecutive.size()-threshold;
-                    List<String> pattern = new ArrayList<>();
-                    for(TimeSlot t:consecutive){
-                        pattern.add(t.getType());
-                    }
-                    if(unwantedPatterns.contains(new TimeSlotTypePattern(pattern))){
-                        result+=1;
-                    }
+                if (consecutive.size() >  threshold) {
+                    result += consecutive.size() - threshold;
+                }
+                List<String> pattern = new ArrayList<>();
+                for(TimeSlot t:consecutive){
+                    pattern.add(t.getType());
+                }
+                //todo This only compares exactly the same not if it is some where
+                if(unwantedPatterns.contains(new TimeSlotTypePattern(pattern))){
+                    result+=1;
                 }
                 consecutive.clear();
                 consecutive.add(timeSlots.get(i));
             }
             if(i == timeSlots.size()-1){
-                if (consecutive.size() >  threshold){
-                    result+=consecutive.size()-threshold;
-                    List<String> pattern = new ArrayList<>();
-                    for(TimeSlot t:consecutive){
-                        pattern.add(t.getType());
-                    }
-                    if(unwantedPatterns.contains(new TimeSlotTypePattern(pattern))){
-                        result+=1;
-                    }
+                if (consecutive.size() >  threshold) {
+                    result += consecutive.size() - threshold;
+                }
+                List<String> pattern = new ArrayList<>();
+                for(TimeSlot t:consecutive){
+                    pattern.add(t.getType());
+                }
+                if(unwantedPatterns.contains(new TimeSlotTypePattern(pattern))){
+                    result+=1;
                 }
             }
         }
