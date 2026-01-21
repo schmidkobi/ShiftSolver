@@ -1,6 +1,8 @@
 package com.shiftplanner.excelIO;
 
-import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.Row;
 
 public final class ExcelHelpers {
 

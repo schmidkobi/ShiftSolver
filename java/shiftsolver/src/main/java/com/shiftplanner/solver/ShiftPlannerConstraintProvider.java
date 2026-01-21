@@ -1,13 +1,16 @@
 package com.shiftplanner.solver;
 
 import com.shiftplanner.domain.*;
-import org.optaplanner.core.api.score.buildin.hardsoft.HardSoftScore;
-import org.optaplanner.core.api.score.stream.*;
+import ai.timefold.solver.core.api.score.buildin.hardsoft.HardSoftScore;
+import ai.timefold.solver.core.api.score.stream.Constraint;
+import ai.timefold.solver.core.api.score.stream.ConstraintFactory;
+import ai.timefold.solver.core.api.score.stream.ConstraintProvider;
 
 
 import static com.shiftplanner.domain.TimeSlot.consecutiveSlots;
-import static org.optaplanner.core.api.score.stream.ConstraintCollectors.*;
-import static org.optaplanner.core.api.score.stream.Joiners.equal;
+import static ai.timefold.solver.core.api.score.stream.ConstraintCollectors.sumDuration;
+import static ai.timefold.solver.core.api.score.stream.ConstraintCollectors.toList;
+import static ai.timefold.solver.core.api.score.stream.Joiners.equal;
 
 public class ShiftPlannerConstraintProvider implements ConstraintProvider {
     @Override

@@ -1,1 +1,16 @@
-com\sammyshifts\app\App.class
+com\shiftplanner\excelIO\ExcelHelpers.class
+com\shiftplanner\domain\ShiftPlannerApp.class
+com\shiftplanner\domain\TimeSlot.class
+com\shiftplanner\window\DropWindow$FileDropHandler.class
+com\shiftplanner\excelIO\ExcelHandler.class
+com\shiftplanner\domain\MinMaxHours.class
+com\shiftplanner\domain\Shiftplan.class
+com\shiftplanner\domain\Employee.class
+com\shiftplanner\domain\Shift.class
+com\shiftplanner\window\DropWindow$1.class
+com\shiftplanner\solver\ShiftPlannerConstraintProvider.class
+com\shiftplanner\window\DropWindow.class
+com\shiftplanner\domain\AvailableShift.class
+com\shiftplanner\domain\TimeSlotTypePattern.class
+com\shiftplanner\domain\ShiftAssignment.class
+com\shiftplanner\window\DropWindow$2.class

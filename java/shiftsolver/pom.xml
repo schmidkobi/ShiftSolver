@@ -19,9 +19,9 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>org.optaplanner</groupId>
-        <artifactId>optaplanner-bom</artifactId>
-        <version>9.44.0.Final</version>
+        <groupId>ai.timefold.solver</groupId>
+        <artifactId>timefold-solver-bom</artifactId>
+        <version>1.30.0</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -34,23 +34,62 @@
   </dependencyManagement>
 
   <dependencies>
+    <!-- Source: https://mvnrepository.com/artifact/ai.timefold.solver/timefold-solver-core -->
     <dependency>
-      <groupId>org.optaplanner</groupId>
-      <artifactId>optaplanner-core</artifactId>
+      <groupId>ai.timefold.solver</groupId>
+      <artifactId>timefold-solver-core</artifactId>
+      <version>1.30.0</version>
+      <scope>compile</scope>
     </dependency>
+
+    <!-- Source: https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-slf4j-impl
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-slf4j-impl</artifactId>
+      <version>2.25.3</version>
+      <scope>compile</scope>
+
+    </dependency>-->
+
+    <!--<dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>2.0.17</version>
+      <scope>compile</scope>
+    </dependency>-->
+
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
-      <scope>runtime</scope>
+      <version>1.5.25</version>
+      <scope>compile</scope>
+    </dependency>
+
+
+    <!-- Source: https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-core -->
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-core</artifactId>
+      <version>2.25.3</version>
+      <scope>compile</scope>
     </dependency>
 
     <!-- Testing -->
+    <!-- Source: https://mvnrepository.com/artifact/ai.timefold.solver/timefold-solver-test -->
     <dependency>
-      <groupId>org.optaplanner</groupId>
-      <artifactId>optaplanner-test</artifactId>
+      <groupId>ai.timefold.solver</groupId>
+      <artifactId>timefold-solver-test</artifactId>
+      <version>1.30.0</version>
       <scope>test</scope>
     </dependency>
 
+    <!-- Source: https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter-api -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <version>6.0.2</version>
+      <scope>test</scope>
+    </dependency>
 
     <dependency>
       <groupId>org.apache.poi</groupId>
@@ -64,23 +103,15 @@
     </dependency>
 
     <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-api</artifactId>
-      <version>2.25.3</version>
-    </dependency>
-
-    <!-- Log4j2 Core Implementation (MISSING!) -->
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-core</artifactId>
-      <version>2.25.3</version>
-    </dependency>
-
-
-    <dependency>
       <groupId>org.apache.xmlbeans</groupId>
       <artifactId>xmlbeans</artifactId>
       <version>5.0.2</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>RELEASE</version>
+      <scope>test</scope>
     </dependency>
 
 

@@ -1,7 +1,9 @@
 package com.shiftplanner.domain;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 public class TimeSlotTypePattern {
     private final List<String> typePattern; // immutable list

@@ -2,9 +2,15 @@ package com.shiftplanner.window;
 import com.shiftplanner.domain.ShiftPlannerApp;
 
 import javax.swing.*;
-import java.awt.*;
-import java.awt.datatransfer.*;
-import java.awt.dnd.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetAdapter;
+import java.awt.dnd.DropTargetDropEvent;
 import java.io.File;
 import java.util.List;
 import java.util.concurrent.ExecutionException;

@@ -2,9 +2,9 @@ package com.shiftplanner.domain;
 
 import com.shiftplanner.excelIO.ExcelHandler;
 import com.shiftplanner.solver.ShiftPlannerConstraintProvider;
-import org.optaplanner.core.api.solver.Solver;
-import org.optaplanner.core.api.solver.SolverFactory;
-import org.optaplanner.core.config.solver.SolverConfig;
+import ai.timefold.solver.core.api.solver.Solver;
+import ai.timefold.solver.core.api.solver.SolverFactory;
+import ai.timefold.solver.core.config.solver.SolverConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +25,7 @@ public class ShiftPlannerApp {
                 .withTerminationSpentLimit(Duration.ofSeconds(20)));
 
 
-        String filePath = "feb26.xlsx"; // Update with your file path
+        String filePath = "feb26.xlsx";
         ExcelHandler handler = new ExcelHandler(filePath);
         Shiftplan plan = handler.ShiftPlanFromExcelFile();
         //Shiftplan plan = generateData();
