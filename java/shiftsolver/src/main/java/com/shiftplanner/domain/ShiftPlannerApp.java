@@ -1,5 +1,7 @@
 package com.shiftplanner.domain;
 
+import ai.timefold.solver.core.api.domain.solution.ConstraintWeightOverrides;
+import ai.timefold.solver.core.api.score.buildin.hardsoft.HardSoftScore;
 import com.shiftplanner.excelIO.ExcelHandler;
 import com.shiftplanner.solver.ShiftPlannerConstraintProvider;
 import ai.timefold.solver.core.api.solver.Solver;
@@ -11,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 //todo: is it possible to stop when score threshold is met?
 
@@ -18,35 +21,32 @@ public class ShiftPlannerApp {
     private static final Logger LOGGER = LoggerFactory.getLogger(ShiftPlannerApp.class);
 
     public static void main(String[] args) {
-        SolverFactory<Shiftplan> solverFactory = SolverFactory.create(new SolverConfig()
-                .withSolutionClass(Shiftplan.class)
-                .withEntityClasses(ShiftAssignment.class)
-                .withConstraintProviderClass(ShiftPlannerConstraintProvider.class)
-                .withTerminationSpentLimit(Duration.ofSeconds(20)));
-
-
-        String filePath = "feb26.xlsx";
+        String filePath = "okt25.xlsx";
         ExcelHandler handler = new ExcelHandler(filePath);
         Shiftplan plan = handler.ShiftPlanFromExcelFile();
-        //Shiftplan plan = generateData();
+        SolverConfig solverConfig = handler.getSolverConfig();
+
+        SolverFactory<Shiftplan> solverFactory = SolverFactory.create(solverConfig);
         Solver<Shiftplan> solver = solverFactory.buildSolver();
+
         Shiftplan solution = solver.solve(plan);
+
         handler.writeSolvedShiftsToCopy(solution);
+
         printShiftPlan(solution);
     }
 
     public static boolean solveShiftPlanFile(String filePath) {
-        SolverFactory<Shiftplan> solverFactory = SolverFactory.create(new SolverConfig()
-                .withSolutionClass(Shiftplan.class)
-                .withEntityClasses(ShiftAssignment.class)
-                .withConstraintProviderClass(ShiftPlannerConstraintProvider.class)
-                .withTerminationSpentLimit(Duration.ofSeconds(60)));
-
         ExcelHandler handler = new ExcelHandler(filePath);
         Shiftplan plan = handler.ShiftPlanFromExcelFile();
+        SolverConfig solverConfig = handler.getSolverConfig();
+        SolverFactory<Shiftplan> solverFactory = SolverFactory.create(solverConfig);
         Solver<Shiftplan> solver = solverFactory.buildSolver();
+
         Shiftplan solution = solver.solve(plan);
+
         handler.writeSolvedShiftsToCopy(solution);
+
         return true;
     }
 
@@ -109,7 +109,7 @@ public class ShiftPlannerApp {
         for (ShiftAssignment shiftAssignment : shiftAssignments){
             if(shiftAssignment.getEmployee()==null)
                 continue;
-            LOGGER.info("|"+ shiftAssignment.getShift().getTimeSlot().getId()+"|     "+ shiftAssignment.getEmployee().getName()+"|");
+            LOGGER.info("|"+ shiftAssignment.getShift().getTimeSlot().getId()+"("+shiftAssignment.getShift().getTimeSlot().getType()+") | "+ shiftAssignment.getEmployee().getName()+"|");
         }
 
         LOGGER.info("");

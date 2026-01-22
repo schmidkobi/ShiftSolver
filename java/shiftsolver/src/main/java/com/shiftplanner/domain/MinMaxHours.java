@@ -39,4 +39,13 @@ public class MinMaxHours {
     public Boolean between(Duration d){
         return min.compareTo(d) <= 0 && max.compareTo(d) >= 0;
     }
+    public Duration getDifference(Duration d){
+        if(min.compareTo(d) > 0){
+            return min.minus(d);
+        }
+        else if(max.compareTo(d) < 0)
+            return d.minus(max);
+        else
+            return Duration.ZERO;
+    }
 }

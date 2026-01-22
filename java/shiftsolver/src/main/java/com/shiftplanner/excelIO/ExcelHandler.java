@@ -1,6 +1,12 @@
 package com.shiftplanner.excelIO;
 
+import ai.timefold.solver.core.api.domain.solution.ConstraintWeightOverrides;
+import ai.timefold.solver.core.api.score.Score;
+import ai.timefold.solver.core.api.score.buildin.hardsoft.HardSoftScore;
+import ai.timefold.solver.core.config.solver.SolverConfig;
+import ai.timefold.solver.core.config.solver.termination.TerminationConfig;
 import com.shiftplanner.domain.*;
+import com.shiftplanner.solver.ShiftPlannerConstraintProvider;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
@@ -29,6 +35,7 @@ public class ExcelHandler {
     private String minHoursKey;
     private String maxHoursKey;
     private String consecutiveShiftsKey;
+    private String specialUnwantedPatternKey;
 
 
     //Important Indices
@@ -40,12 +47,17 @@ public class ExcelHandler {
     private XSSFWorkbook workbook;
     private Map<String,Duration> shiftDurations;
     private List<TimeSlotTypePattern>unwantedPatterns;
+    private List<TimeSlotTypePattern>specialUnwantedPatterns;
+    private Map<String, HardSoftScore> constraintWeightOverridesMap;
+    private SolverConfig solverConfig;
 
     public ExcelHandler(String filepath){
         this.originalFilePath = filepath;
         this.headers = new ArrayList<>();
         this.shiftDurations = new HashMap<>();
         this.unwantedPatterns = new ArrayList<>();
+        this.specialUnwantedPatterns = new ArrayList<>();
+        this.constraintWeightOverridesMap = new HashMap<>();
         this.loadWorkbook();
         this.loadSettings();
     }
@@ -73,8 +85,12 @@ public class ExcelHandler {
         Sheet sheet = this.workbook.getSheetAt(0);
         //Get Row Indices
         int shiftSettingsIndex = -1;
-        int labelsSettingsIndex = -1;
         int unwantedShiftPatternsIndex = -1;
+        int specialUnwantedShiftPatternsIndex= -1;
+        int solverConfigurationIndex = -1;
+        int constraintWeightsIndex = -1;
+        int labelsSettingsIndex = -1;
+
         for (Row row : sheet) {
             Cell cell = row.getCell(0);
             if(cell==null || cell.getCellType() != CellType.STRING) continue;
@@ -84,16 +100,28 @@ public class ExcelHandler {
                     break;
                 case "Unwanted Shift Patterns":
                     unwantedShiftPatternsIndex = row.getRowNum();
+                    break;
+                case "Special Unwanted Shift Patterns":
+                    specialUnwantedShiftPatternsIndex = row.getRowNum();
+                    break;
+                case "Solver Configuration":
+                    solverConfigurationIndex = row.getRowNum();
+                    break;
+                case "Constraint Weights":
+                    constraintWeightsIndex = row.getRowNum();
+                    break;
                 case "Labels":
                     labelsSettingsIndex = row.getRowNum();
                     break;
                 default:
                     continue;
-
             }
         }
         loadShiftSettings(shiftSettingsIndex,unwantedShiftPatternsIndex);
-        loadUnwantedShiftPatterns(unwantedShiftPatternsIndex,labelsSettingsIndex);
+        loadUnwantedShiftPatterns(unwantedShiftPatternsIndex,specialUnwantedShiftPatternsIndex,this.unwantedPatterns);
+        loadUnwantedShiftPatterns(specialUnwantedShiftPatternsIndex,solverConfigurationIndex, this.specialUnwantedPatterns);
+        loadSolverConfiguration(solverConfigurationIndex,constraintWeightsIndex);
+        loadConstraintWeights(constraintWeightsIndex,labelsSettingsIndex);
         loadLabels(labelsSettingsIndex);
     }
 
@@ -115,10 +143,9 @@ public class ExcelHandler {
         }
     }
 
-    private void loadUnwantedShiftPatterns(int startIndex, int endIndex) {
+    private void loadUnwantedShiftPatterns(int startIndex, int endIndex, List<TimeSlotTypePattern> patternList) {
         Sheet sheet = this.workbook.getSheetAt(0);
         //check header
-
         Row shiftSettingsHeader = sheet.getRow(startIndex);
         for(int i = startIndex+1;i<endIndex;i++){
             Row row = sheet.getRow(i);
@@ -128,7 +155,73 @@ public class ExcelHandler {
                 if(cell.getCellType()!=CellType.STRING) throw new RuntimeException("Shift types need to be string");
                 types.add(cell.getStringCellValue());
             }
-            this.unwantedPatterns.add(new TimeSlotTypePattern(types));
+            patternList.add(new TimeSlotTypePattern(types));
+        }
+    }
+
+    private void loadSolverConfiguration(int startIndex, int endIndex) {
+        Sheet sheet = this.workbook.getSheetAt(0);
+        int terminationSpentLimit = -1;
+        for(int i = startIndex+1;i<endIndex;i++) {
+            Row row = sheet.getRow(i);
+            Cell keyCell = row.getCell(0);
+            Cell valueCell = row.getCell(1);
+            CellType keyType = keyCell == null ? CellType.BLANK : keyCell.getCellType();
+            CellType valueType = valueCell == null ? CellType.BLANK : valueCell.getCellType();
+
+            if (keyType == CellType.BLANK) break; // stop early if empty key
+            if (keyType != CellType.STRING) {
+                throw new RuntimeException("solver configuration key needs to be a string");
+            }
+            switch (keyCell.getStringCellValue()) {
+                case "TerminationSpentLimit":
+                    if (valueType != CellType.NUMERIC) {
+                        throw new RuntimeException("TerminationSpentLimit value needs to be a number");
+                    }
+                    terminationSpentLimit = (int) valueCell.getNumericCellValue();
+                    break;
+                default:
+                    throw new RuntimeException("solver configuration key " + keyCell.getStringCellValue() + " is unknown");
+            }
+        }
+        this.solverConfig = new SolverConfig()
+                .withSolutionClass(Shiftplan.class)
+                .withEntityClasses(ShiftAssignment.class)
+                .withConstraintProviderClass(ShiftPlannerConstraintProvider.class)
+                .withTerminationSpentLimit(Duration.ofSeconds(terminationSpentLimit));
+    }
+
+    private void loadConstraintWeights(int startIndex, int endIndex) {
+        Sheet sheet = this.workbook.getSheetAt(0);
+        for(int i = startIndex+1;i<endIndex;i++){
+            Row row = sheet.getRow(i);
+            Cell keyCell = row.getCell(0);
+            Cell hardCell = row.getCell(1);
+            Cell softCell = row.getCell(2);
+
+            CellType keyType = keyCell == null ? CellType.BLANK : keyCell.getCellType();
+            CellType hardType = hardCell == null ? CellType.BLANK : hardCell.getCellType();
+            CellType softType = softCell == null ? CellType.BLANK : softCell.getCellType();
+
+            if (keyType == CellType.BLANK) break; // stop early if empty key
+
+            if (keyType != CellType.STRING) {
+                throw new RuntimeException("constraint weight key needs to be a string");
+            }
+
+            if (hardType == CellType.NUMERIC && softType == CellType.NUMERIC) {
+                throw new RuntimeException("either hard or soft score allowed not both");
+            }
+
+            HardSoftScore weight;
+            if (hardType == CellType.NUMERIC) {
+                weight = HardSoftScore.ofHard((int) hardCell.getNumericCellValue());
+            } else if (softType == CellType.NUMERIC) {
+                weight = HardSoftScore.ofSoft((int) softCell.getNumericCellValue());
+            } else {
+                throw new RuntimeException("both weights are empty");
+            }
+            this.constraintWeightOverridesMap.put(row.getCell(0).getStringCellValue(), weight);
         }
     }
 
@@ -157,6 +250,9 @@ public class ExcelHandler {
                     break;
                 case "consecutiveShifts":
                     this.consecutiveShiftsKey = row.getCell(1).getStringCellValue();
+                    break;
+                case "specialUnwantedPattern":
+                    this.specialUnwantedPatternKey = row.getCell(1).getStringCellValue();
                     break;
                 default:
                     throw new RuntimeException("unknown key label");
@@ -276,13 +372,19 @@ public class ExcelHandler {
         //read settings like min max hours
         int minHoursRowNum = settingsRowNum;
         int maxHoursRowNum = settingsRowNum + 1;
-        int consecutiveShiftRowNum = settingsRowNum +3;
-        if(!verifySettingsRowFormat(sheet,minHoursKey,maxHoursKey,minHoursRowNum,maxHoursRowNum,shiftStartColumnNumber)){
-            throw new RuntimeException("Can not find min or max hours settings");
-        }
+        int consecutiveShiftRowNum = settingsRowNum + 3;
+        int specialUnwantedPattern = settingsRowNum + 4;
+
+        //Check keys
         Row minRow = sheet.getRow(minHoursRowNum);
+        if( !minRow.getCell(shiftStartColumnNumber-1).getStringCellValue().equals(this.minHoursKey)) throw new RuntimeException("Min hours key not found");
         Row maxRow = sheet.getRow(maxHoursRowNum);
+        if( !maxRow.getCell(shiftStartColumnNumber-1).getStringCellValue().equals(this.maxHoursKey)) throw new RuntimeException("Max hours key not found");
         Row consecutiveShiftsRow= sheet.getRow(consecutiveShiftRowNum);
+        if( !consecutiveShiftsRow.getCell(shiftStartColumnNumber-1).getStringCellValue().equals(this.consecutiveShiftsKey)) throw new RuntimeException("Consecutive shifts key not found");
+        Row specialUnwantedPatternRow = sheet.getRow(specialUnwantedPattern);
+        if( !specialUnwantedPatternRow.getCell(shiftStartColumnNumber-1).getStringCellValue().equals(this.specialUnwantedPatternKey)) throw new RuntimeException("Special unwanted pattern key not found");
+
         for(int i = shiftStartColumnNumber; i < shiftEndColumnNumber; i++){
             int employeeIndex = i-shiftStartColumnNumber;
             long minHours=0;
@@ -312,6 +414,13 @@ public class ExcelHandler {
             }else{
                 throw new RuntimeException("Consecutive shift field has wrong cell type");
             }
+
+            Cell specialUnwantedPatternCell = specialUnwantedPatternRow.getCell(i);
+            if(specialUnwantedPatternCell.getCellType()==CellType.BOOLEAN){
+                employees.get(employeeIndex).setAvoidSpecialPatterns(specialUnwantedPatternCell.getBooleanCellValue());
+            }else{
+                throw new RuntimeException("Special unwanted pattern field has wrong cell type");
+            }
         }
 
 
@@ -323,7 +432,8 @@ public class ExcelHandler {
         plan.setEmployeeList(employees);
         plan.setShiftList(shifts);
         plan.setUnwantedShiftCombinationList(this.unwantedPatterns);
-
+        plan.setSpecialUnwantedShiftCombinationList(this.specialUnwantedPatterns);
+        plan.setConstraintWeightOverrides(ConstraintWeightOverrides.of(this.constraintWeightOverridesMap));
         return plan;
     }
 
@@ -362,20 +472,15 @@ public class ExcelHandler {
         return true;
     }
 
-    public static boolean verifySettingsRowFormat(Sheet sheet, String minHoursKey, String maxHoursKey, int minimalRowNum, int maximalRowNum, int shiftStartColumnNumber ) {
-        int keyColumnNumber = shiftStartColumnNumber - 1;
-        if(!stringCellEquals(sheet.getRow(minimalRowNum).getCell(keyColumnNumber), minHoursKey)){
-            return false;
-        }
-        if(!stringCellEquals(sheet.getRow(maximalRowNum).getCell(keyColumnNumber), maxHoursKey)){
-            return false;
-        }
-        return true;
-    }
+
 
     private static String appendSuffix(String filepath, String suffix) {
         int dot = filepath.lastIndexOf('.');
         if (dot == -1) return filepath + suffix;            // no extension
         return filepath.substring(0, dot) + suffix + filepath.substring(dot);
+    }
+
+    public SolverConfig getSolverConfig() {
+        return solverConfig;
     }
 }

@@ -1,9 +1,6 @@
 package com.shiftplanner.domain;
 
-import ai.timefold.solver.core.api.domain.solution.PlanningEntityCollectionProperty;
-import ai.timefold.solver.core.api.domain.solution.PlanningScore;
-import ai.timefold.solver.core.api.domain.solution.PlanningSolution;
-import ai.timefold.solver.core.api.domain.solution.ProblemFactCollectionProperty;
+import ai.timefold.solver.core.api.domain.solution.*;
 import ai.timefold.solver.core.api.domain.valuerange.ValueRangeProvider;
 import ai.timefold.solver.core.api.score.buildin.hardsoft.HardSoftScore;
 
@@ -20,12 +17,16 @@ public class Shiftplan {
     private List<Shift> shiftList;
     @ProblemFactCollectionProperty
     private List<TimeSlotTypePattern> unwantedTimeSlotTypePatternList;
+    @ProblemFactCollectionProperty
+    private List<TimeSlotTypePattern> specialUnwantedTimeSlotTypePatternList;
 
     @PlanningEntityCollectionProperty
     private List<ShiftAssignment> shiftAssignmentList;
 
     @PlanningScore
     HardSoftScore score;
+
+    ConstraintWeightOverrides<HardSoftScore> constraintWeightOverrides;
 
     public Shiftplan(){}
 
@@ -58,10 +59,23 @@ public class Shiftplan {
         this.unwantedTimeSlotTypePatternList = unwantedTimeSlotTypePatternList;
     }
 
+    public List<TimeSlotTypePattern> getSpecialUnwantedShiftCombinationList() {return specialUnwantedTimeSlotTypePatternList;}
+    public void setSpecialUnwantedShiftCombinationList(List<TimeSlotTypePattern> specialUnwantedTimeSlotTypePatternList) {
+        this.specialUnwantedTimeSlotTypePatternList = specialUnwantedTimeSlotTypePatternList;
+    }
+
     public List<ShiftAssignment> getShiftAssignmentList() {
         return shiftAssignmentList;
     }
     public void setShiftAssignmentList(List<ShiftAssignment> shiftAssignmentList) {
         this.shiftAssignmentList = shiftAssignmentList;
+    }
+
+    public void setConstraintWeightOverrides(ConstraintWeightOverrides<HardSoftScore> constraintWeightOverrides) {
+        this.constraintWeightOverrides = constraintWeightOverrides;
+    }
+
+    public ConstraintWeightOverrides<HardSoftScore> getConstraintWeightOverrides() {
+        return constraintWeightOverrides;
     }
 }

@@ -4,13 +4,14 @@ public class Employee {
     private String name;
     private MinMaxHours minMaxHours;
     private int maxConsecutiveShifts;
-
+    private boolean avoidSpecialPatterns;
     public Employee() {}
 
 
     public Employee(String name) {
         this.name = name;
         this.maxConsecutiveShifts = 1;
+        this.avoidSpecialPatterns = false;
     }
 
     public String getName() {
@@ -33,5 +34,12 @@ public class Employee {
 
     public void setMaxConsecutiveShifts(int maxConsecutiveShifts) {
         this.maxConsecutiveShifts = maxConsecutiveShifts;
+    }
+
+    public boolean isAvoidSpecialPatterns() {
+        return avoidSpecialPatterns;
+    }
+    public void setAvoidSpecialPatterns(boolean avoidSpecialPatterns) {
+        this.avoidSpecialPatterns = avoidSpecialPatterns;
     }
 }
