@@ -1,7 +1,9 @@
 package com.shiftplanner.domain;
 
 import ai.timefold.solver.core.api.domain.solution.ConstraintWeightOverrides;
+import ai.timefold.solver.core.api.score.Score;
 import ai.timefold.solver.core.api.score.buildin.hardsoft.HardSoftScore;
+import ai.timefold.solver.core.api.solver.SolverStatus;
 import com.shiftplanner.excelIO.ExcelHandler;
 import com.shiftplanner.solver.ShiftPlannerConstraintProvider;
 import ai.timefold.solver.core.api.solver.Solver;
@@ -14,11 +16,14 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 //todo: is it possible to stop when score threshold is met?
 
 public class ShiftPlannerApp {
     private static final Logger LOGGER = LoggerFactory.getLogger(ShiftPlannerApp.class);
+    private static volatile Solver<Shiftplan> currentSolver;
 
     public static void main(String[] args) {
         String filePath = "okt25.xlsx";
@@ -30,24 +35,34 @@ public class ShiftPlannerApp {
         Solver<Shiftplan> solver = solverFactory.buildSolver();
 
         Shiftplan solution = solver.solve(plan);
-
         handler.writeSolvedShiftsToCopy(solution);
 
         printShiftPlan(solution);
     }
 
-    public static boolean solveShiftPlanFile(String filePath) {
-        ExcelHandler handler = new ExcelHandler(filePath);
-        Shiftplan plan = handler.ShiftPlanFromExcelFile();
-        SolverConfig solverConfig = handler.getSolverConfig();
-        SolverFactory<Shiftplan> solverFactory = SolverFactory.create(solverConfig);
-        Solver<Shiftplan> solver = solverFactory.buildSolver();
+    public static boolean solveShiftPlanFile(String filePath,  Consumer<String> bestScoreConsumer) {
+        try{
+            ExcelHandler handler = new ExcelHandler(filePath);
+            Shiftplan plan = handler.ShiftPlanFromExcelFile();
+            SolverConfig solverConfig = handler.getSolverConfig();
+            SolverFactory<Shiftplan> solverFactory = SolverFactory.create(solverConfig);
+            Solver<Shiftplan> solver = solverFactory.buildSolver();
+            solver.addEventListener(event -> {
+                Score score = event.getNewBestScore();
+                bestScoreConsumer.accept(score.toString());
+            });
+            currentSolver = solver;
+            Shiftplan solution = solver.solve(plan);
+            handler.writeSolvedShiftsToCopy(solution);
+        return solution != null;
+    } finally {
+        currentSolver = null;
+    }
+    }
 
-        Shiftplan solution = solver.solve(plan);
-
-        handler.writeSolvedShiftsToCopy(solution);
-
-        return true;
+    public static void requestTerminateEarly() {
+        Solver<Shiftplan> s = currentSolver;
+        if (s != null) s.terminateEarly();
     }
 
     public static Shiftplan generateData(){

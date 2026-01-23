@@ -74,6 +74,14 @@
       <scope>compile</scope>
     </dependency>
 
+    <!-- Source: https://mvnrepository.com/artifact/org.apache.commons/commons-text -->
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-text</artifactId>
+      <version>1.15.0</version>
+      <scope>compile</scope>
+    </dependency>
+
     <!-- Testing -->
     <!-- Source: https://mvnrepository.com/artifact/ai.timefold.solver/timefold-solver-test -->
     <dependency>

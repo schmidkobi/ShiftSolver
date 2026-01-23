@@ -1,4 +1,5 @@
 package com.shiftplanner.window;
+
 import com.shiftplanner.domain.ShiftPlannerApp;
 
 import javax.swing.*;
@@ -14,22 +15,37 @@ import java.awt.dnd.DropTargetDropEvent;
 import java.io.File;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
+
+import static org.apache.commons.text.StringEscapeUtils.escapeHtml4;
+
 
 public class DropWindow extends JFrame {
     private final JLabel label;
+    private final JButton cancelButton;
+    private volatile boolean cancelRequested = false; // used if ShiftPlannerApp supports cancellation
 
     public DropWindow() {
         setTitle("Shift Solver");
-        setSize(350, 150);
+        setSize(450, 160);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
         label = new JLabel("Drop File here", SwingConstants.CENTER);
-        label.setFont(label.getFont().deriveFont(Font.PLAIN, 18f));
+        label.setFont(label.getFont().deriveFont(Font.PLAIN, 16f));
         label.setBorder(BorderFactory.createLineBorder(Color.GRAY));
         label.setTransferHandler(new FileDropHandler());
 
+        cancelButton = new JButton("Cancel");
+        cancelButton.setEnabled(false);
+        cancelButton.addActionListener(e -> {
+            cancelButton.setEnabled(false);
+            ShiftPlannerApp.requestTerminateEarly();
+            // If ShiftPlannerApp exposes cancellation, call it here, e.g. ShiftPlannerApp.requestCancel();
+        });
+
         add(label, BorderLayout.CENTER);
+        add(cancelButton, BorderLayout.SOUTH);
 
         new DropTarget(label, DnDConstants.ACTION_COPY, new DropTargetAdapter() {
             @Override
@@ -81,12 +97,36 @@ public class DropWindow extends JFrame {
     }
 
     private void handleFileDrop(String path) {
-        SwingUtilities.invokeLater(() -> label.setText("calculating"));
+        SwingUtilities.invokeLater(() -> {
+            label.setText("Starting solver...");
+            cancelButton.setEnabled(true);
+            cancelRequested = false;
+        });
+
+        // Create a Score consumer that updates the label on EDT.
+        Consumer<String> scoreConsumer = scoreText -> SwingUtilities.invokeLater(() -> label.setText(scoreText));
 
         new SwingWorker<Boolean, Void>() {
+            private String runtimeErrorMessage = null;
+            private volatile String lastScore = null;
+
             @Override
             protected Boolean doInBackground() {
-                return ShiftPlannerApp.solveShiftPlanFile(path);
+                try {
+                    java.util.function.Consumer<String> bestScoreConsumer = s ->{
+                            lastScore = s;
+                            SwingUtilities.invokeLater(() -> label.setText("Best score: " + s));};
+                    return ShiftPlannerApp.solveShiftPlanFile(path, bestScoreConsumer);
+                } catch (RuntimeException | Error e) {
+                    // Record a concise message (type + message); keep stacktrace for logs
+                    runtimeErrorMessage = e.getClass().getSimpleName() + ": " + e.getMessage();
+                    e.printStackTrace();
+                    return false;
+                } catch (Exception e) {
+                    runtimeErrorMessage = "Exception: " + e.getMessage();
+                    e.printStackTrace();
+                    return false;
+                }
             }
 
             @Override
@@ -94,14 +134,26 @@ public class DropWindow extends JFrame {
                 try {
                     boolean result = get();
                     SwingUtilities.invokeLater(() -> {
-                        if (result) {
-                            label.setText("Success");
+                        if (runtimeErrorMessage != null) {
+                            label.setText("<html><body style='text-align:center;color:red;'>Error:<br>" +
+                                    escapeHtml4(runtimeErrorMessage) + "</body></html>");
+                        } else if (result) {
+                            label.setText("Finished! Last Score: "+lastScore);
                         } else {
-                            label.setText("Something went wrong");
+                            label.setText("Cancelled or failed");
                         }
+                        cancelButton.setEnabled(false);
                     });
-                } catch (InterruptedException | ExecutionException e) {
-                    SwingUtilities.invokeLater(() -> label.setText("Something went wrong"));
+                } catch (InterruptedException e) {
+                    SwingUtilities.invokeLater(() -> label.setText("Interrupted"));
+                } catch (ExecutionException e) {
+                    // If the exception wasn't caught in doInBackground, unwrap and display it
+                    Throwable cause = e.getCause();
+                    String msg = cause != null ? (cause.getClass().getSimpleName() + ": " + cause.getMessage())
+                            : e.getMessage();
+                    final String display = msg;
+                    SwingUtilities.invokeLater(() -> label.setText("<html><body style='text-align:center;color:red;'>Error:<br>" +
+                            escapeHtml4(display) + "</body></html>"));
                 }
             }
         }.execute();
