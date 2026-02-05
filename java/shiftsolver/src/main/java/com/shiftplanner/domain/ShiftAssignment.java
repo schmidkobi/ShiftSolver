@@ -38,6 +38,6 @@ public class ShiftAssignment {
     }
 
     public Duration getShiftDuration() {
-        return shift.getTimeSlot().getDuration();
+        return shift.getTimeSlot().getPaidHours();
     }
 }

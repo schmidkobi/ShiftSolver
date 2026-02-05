@@ -27,7 +27,7 @@ public class DropWindow extends JFrame {
 
     public DropWindow() {
         setTitle("Shift Solver");
-        setSize(450, 160);
+        setSize(800, 500);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
@@ -138,7 +138,19 @@ public class DropWindow extends JFrame {
                             label.setText("<html><body style='text-align:center;color:red;'>Error:<br>" +
                                     escapeHtml4(runtimeErrorMessage) + "</body></html>");
                         } else if (result) {
-                            label.setText("Finished! Last Score: "+lastScore);
+                            String explanation = ShiftPlannerApp.getCurrentScoreExplanation();
+                            String escapedExplanation = escapeHtml4(explanation == null ? "" : explanation)
+                                    .replace("\n", "<br/>");
+                            String lastScoreSafe = lastScore == null ? "" : escapeHtml4(lastScore);
+                            String finishedHtml = "<html><body style='text-align:center;'>"
+                                    + "<span style='color:green;font-weight:bold;'>Finished!</span><br/>"
+                                    + "Best Score: " + lastScoreSafe + "<br/><br/>"
+                                    // wrap explanation in a left-aligned div with a fixed width or max-width
+                                    + "<div style='text-align:left; display:inline-block; max-width:400px;'>"
+                                    + escapedExplanation
+                                    + "</div>"
+                                    + "</body></html>";
+                            label.setText(finishedHtml);
                         } else {
                             label.setText("Cancelled or failed");
                         }

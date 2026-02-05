@@ -1,40 +1,44 @@
 package com.shiftplanner.excelIO;
 
 import ai.timefold.solver.core.api.domain.solution.ConstraintWeightOverrides;
-import ai.timefold.solver.core.api.score.Score;
 import ai.timefold.solver.core.api.score.buildin.hardsoft.HardSoftScore;
 import ai.timefold.solver.core.config.solver.SolverConfig;
 import ai.timefold.solver.core.config.solver.termination.TerminationConfig;
 import com.shiftplanner.domain.*;
 import com.shiftplanner.solver.ShiftPlannerConstraintProvider;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.*;
+import java.util.*;
 
-import static com.shiftplanner.excelIO.ExcelHelpers.isEmpty;
-import static com.shiftplanner.excelIO.ExcelHelpers.stringCellEquals;
+import static com.shiftplanner.excelIO.ExcelHelpers.*;
 
 
 public class ExcelHandler {
+    public final class ShiftInfo {
+        public final LocalTime start;
+        public final LocalTime end;
+        public final Duration paidHours;
+        public ShiftInfo(final LocalTime start, final LocalTime end, final Duration paidHours) {
+            this.start = start;
+            this.end = end;
+            this.paidHours = paidHours;
+        }
+
+    }
+
     private String originalFilePath;
     //Keys
     private List<String> headers;
     private String employeeSettingsKey;
     private String minHoursKey;
     private String maxHoursKey;
-    private String consecutiveShiftsKey;
+    private String doubleWeekendShiftsKey;
     private String specialUnwantedPatternKey;
 
 
@@ -45,7 +49,7 @@ public class ExcelHandler {
     private int shiftEndRowNumber;
 
     private XSSFWorkbook workbook;
-    private Map<String,Duration> shiftDurations;
+    private Map<String,ShiftInfo> shiftInfoMap;
     private List<TimeSlotTypePattern>unwantedPatterns;
     private List<TimeSlotTypePattern>specialUnwantedPatterns;
     private Map<String, HardSoftScore> constraintWeightOverridesMap;
@@ -54,7 +58,7 @@ public class ExcelHandler {
     public ExcelHandler(String filepath){
         this.originalFilePath = filepath;
         this.headers = new ArrayList<>();
-        this.shiftDurations = new HashMap<>();
+        this.shiftInfoMap = new HashMap<>();
         this.unwantedPatterns = new ArrayList<>();
         this.specialUnwantedPatterns = new ArrayList<>();
         this.constraintWeightOverridesMap = new HashMap<>();
@@ -63,13 +67,9 @@ public class ExcelHandler {
     }
 
     public static void main(String[] args) {
-        String filePath = "testSmall.xlsx"; // Update with your file path
+        String filePath = "template.xlsx"; // Update with your file path
         ExcelHandler handler = new ExcelHandler(filePath);
         Shiftplan plan = handler.ShiftPlanFromExcelFile();
-        plan.getShiftList().stream().map(Shift::getTimeSlot)
-                .filter(t -> t.getDuration()==null)
-                .map(TimeSlot::getId)
-                .forEach(System.out::println);
     }
 
     private void loadWorkbook() {
@@ -138,8 +138,12 @@ public class ExcelHandler {
             if(row.getCell(0).getCellType()!=CellType.STRING && row.getCell(0).getCellType()!=CellType.BLANK) throw new RuntimeException("shift type needs to be a string");
             String shiftType = row.getCell(0).getStringCellValue();
             if(row.getCell(1).getCellType()!=CellType.NUMERIC) throw new RuntimeException("shift duration needs to be a number");
-            Duration shitDuration = Duration.ofMinutes((long)row.getCell(1).getNumericCellValue()*60);
-            this.shiftDurations.put(shiftType,shitDuration);
+            Duration paidHours = Duration.ofMinutes((long)row.getCell(1).getNumericCellValue()*60);
+            if(row.getCell(2).getCellType()!=CellType.NUMERIC) throw new RuntimeException("shift start time needs to be a number");
+            LocalTime start= getTime(row.getCell(2));
+            if(row.getCell(3).getCellType()!=CellType.NUMERIC) throw new RuntimeException("shift end time needs to be a number");
+            LocalTime end= getTime(row.getCell(3));
+            this.shiftInfoMap.put(shiftType,new ShiftInfo(start,end,paidHours));
         }
     }
 
@@ -161,7 +165,8 @@ public class ExcelHandler {
 
     private void loadSolverConfiguration(int startIndex, int endIndex) {
         Sheet sheet = this.workbook.getSheetAt(0);
-        int terminationSpentLimit = -1;
+        TerminationConfig terminationConfig = new TerminationConfig();
+
         for(int i = startIndex+1;i<endIndex;i++) {
             Row row = sheet.getRow(i);
             Cell keyCell = row.getCell(0);
@@ -178,7 +183,13 @@ public class ExcelHandler {
                     if (valueType != CellType.NUMERIC) {
                         throw new RuntimeException("TerminationSpentLimit value needs to be a number");
                     }
-                    terminationSpentLimit = (int) valueCell.getNumericCellValue();
+                    terminationConfig.setSecondsSpentLimit((long)valueCell.getNumericCellValue());
+                    break;
+                case "BestScoreLimit":
+                    if (valueType != CellType.STRING) {
+                        throw new RuntimeException("BestScoreLimit value needs to have format \"Xhard/Xsoft\"");
+                    }
+                    terminationConfig.setBestScoreLimit(valueCell.getStringCellValue());
                     break;
                 default:
                     throw new RuntimeException("solver configuration key " + keyCell.getStringCellValue() + " is unknown");
@@ -188,7 +199,7 @@ public class ExcelHandler {
                 .withSolutionClass(Shiftplan.class)
                 .withEntityClasses(ShiftAssignment.class)
                 .withConstraintProviderClass(ShiftPlannerConstraintProvider.class)
-                .withTerminationSpentLimit(Duration.ofSeconds(terminationSpentLimit));
+                .withTerminationConfig(terminationConfig);
     }
 
     private void loadConstraintWeights(int startIndex, int endIndex) {
@@ -248,8 +259,8 @@ public class ExcelHandler {
                 case "maxHours":
                     this.maxHoursKey = row.getCell(1).getStringCellValue();
                     break;
-                case "consecutiveShifts":
-                    this.consecutiveShiftsKey = row.getCell(1).getStringCellValue();
+                case "doubleWeekendShifts":
+                    this.doubleWeekendShiftsKey = row.getCell(1).getStringCellValue();
                     break;
                 case "specialUnwantedPattern":
                     this.specialUnwantedPatternKey = row.getCell(1).getStringCellValue();
@@ -265,54 +276,8 @@ public class ExcelHandler {
         return this.loadShiftPlan(this.workbook);
     }
 
-    public void writeSolvedShiftsToCopy(Shiftplan plan) {
-        //get column num of employee
-        Sheet sheet = this.workbook.getSheetAt(1);
-        Row header = sheet.getRow(0);
-        Map<String,Integer>employeeIndices = new HashMap<>();
-        for(Employee employee : plan.getEmployeeList()) {
-           for(Cell cell : header) {
-               if(stringCellEquals(cell,employee.getName())){
-                   employeeIndices.put(employee.getName(), cell.getColumnIndex());
-               }
-           }
-        }
-        for(ShiftAssignment shiftAssignment: plan.getShiftAssignmentList()){
-            int rowIndex = shiftAssignment.getShift().getTimeSlot().getId();
-            int cellIndex = employeeIndices.get(shiftAssignment.getEmployee().getName());
-            for(int i = this.shiftStartColumnNumber; i < this.shiftEndColumnNumber; i++){
-                Cell cell = sheet.getRow(rowIndex).getCell(i);
-                if(i != cellIndex){
-                    cell.setBlank();
-                }
-            }
-        }
-        String outputFileName = appendSuffix(this.originalFilePath,"Solved");
-        try (FileOutputStream fileOut = new FileOutputStream(outputFileName)) {
-                workbook.write(fileOut);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-    }
-
     public Shiftplan loadShiftPlan(XSSFWorkbook workbook) {
         Sheet sheet = workbook.getSheetAt(1);
-
-        //SETTINGS
-        //Todo: rmv
-        /*this.headers = Arrays.asList("Tag", "Dienst", "Belegung");
-        this.employeeSettingsKey = "Einstellungen";
-        this.minHoursKey = "minimal";
-        this.maxHoursKey = "maximal";
-
-        Map<String, Duration> durationMap = Map.of(
-                "KT", Duration.ofMinutes(210), //3.5h
-                "KN", Duration.ofMinutes(450), //7,5h
-                "MT", Duration.ofMinutes(270), //4,5h
-                "LT", Duration.ofHours(7),
-                "LN", Duration.ofHours(10)
-        );*/
 
         //Init Lists
         List<Employee> employees;
@@ -343,16 +308,42 @@ public class ExcelHandler {
             throw new RuntimeException("No settings row found");
         }
         this.shiftEndRowNumber = settingsRowNum - 1;
+        Cell dateCell = sheet.getRow(1).getCell(0);
+        LocalDate lastDate;
+        if (dateCell != null && dateCell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(dateCell)) {
+            lastDate = LocalDate.ofInstant(dateCell.getDateCellValue().toInstant(), ZoneId.systemDefault());  // Parse the date
+        }
+        else throw new RuntimeException("Start date has wrong format");
         //Get shifts and availability
+        FormulaEvaluator evaluator = this.workbook.getCreationHelper().createFormulaEvaluator();
         for(int i = 1; i < shiftEndRowNumber; i++){
             Row row = sheet.getRow(i);
+            System.out.println(row.getCell(0)+"is"+ row.getCell(0).getCellType() + " "+ row.getCell(1)+" ");
             //Create TimeSlot,Shift and ShiftAssignment
+            dateCell = row.getCell(0);
+            Cell evaluatedDateCell = evaluator.evaluateInCell(dateCell);
+
+            if (evaluatedDateCell != null && evaluatedDateCell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(evaluatedDateCell)) {
+                lastDate = LocalDate.ofInstant(evaluatedDateCell.getDateCellValue().toInstant(), ZoneId.systemDefault());  // Parse the date  // Parse the date
+            }
+
             String shiftType = row.getCell(1).getStringCellValue();
-            Duration duration = this.shiftDurations.get(shiftType);
+            ShiftInfo shiftInfo = this.shiftInfoMap.get(shiftType);
+            Duration duration = shiftInfo.paidHours;
             if(duration==null){
                 throw new RuntimeException("Shift label \""+ shiftType +"\" in row " + (i+1) + " with not found. Typo?");
             }
-            TimeSlot ts = new TimeSlot(row.getRowNum(), duration, shiftType);
+
+            LocalDateTime shiftStart = LocalDateTime.of(lastDate,shiftInfo.start);
+            LocalDateTime shiftEnd;
+            if(shiftInfo.end.isAfter(shiftInfo.start)){
+                shiftEnd = LocalDateTime.of(lastDate, shiftInfo.end);
+            }
+            else{
+                shiftEnd = LocalDateTime.of(lastDate.plusDays(1), shiftInfo.end);
+            }
+
+            TimeSlot ts = new TimeSlot(row.getRowNum(), duration, shiftType, shiftStart, shiftEnd);
             Shift shift = new Shift(ts);
             ShiftAssignment shiftAssignment = new ShiftAssignment();
             shiftAssignment.setShift(shift);
@@ -372,7 +363,7 @@ public class ExcelHandler {
         //read settings like min max hours
         int minHoursRowNum = settingsRowNum;
         int maxHoursRowNum = settingsRowNum + 1;
-        int consecutiveShiftRowNum = settingsRowNum + 3;
+        int doubleWeekendShiftsRowNum = settingsRowNum + 3;
         int specialUnwantedPattern = settingsRowNum + 4;
 
         //Check keys
@@ -380,8 +371,8 @@ public class ExcelHandler {
         if( !minRow.getCell(shiftStartColumnNumber-1).getStringCellValue().equals(this.minHoursKey)) throw new RuntimeException("Min hours key not found");
         Row maxRow = sheet.getRow(maxHoursRowNum);
         if( !maxRow.getCell(shiftStartColumnNumber-1).getStringCellValue().equals(this.maxHoursKey)) throw new RuntimeException("Max hours key not found");
-        Row consecutiveShiftsRow= sheet.getRow(consecutiveShiftRowNum);
-        if( !consecutiveShiftsRow.getCell(shiftStartColumnNumber-1).getStringCellValue().equals(this.consecutiveShiftsKey)) throw new RuntimeException("Consecutive shifts key not found");
+        Row doubleWeekendShiftsRow= sheet.getRow(doubleWeekendShiftsRowNum);
+        if( !doubleWeekendShiftsRow.getCell(shiftStartColumnNumber-1).getStringCellValue().equals(this.doubleWeekendShiftsKey)) throw new RuntimeException("Consecutive shifts key not found");
         Row specialUnwantedPatternRow = sheet.getRow(specialUnwantedPattern);
         if( !specialUnwantedPatternRow.getCell(shiftStartColumnNumber-1).getStringCellValue().equals(this.specialUnwantedPatternKey)) throw new RuntimeException("Special unwanted pattern key not found");
 
@@ -407,10 +398,9 @@ public class ExcelHandler {
             MinMaxHours minMaxHours = new MinMaxHours(employees.get(employeeIndex),minHours,maxHours);
             employees.get(employeeIndex).setMinMaxHours(minMaxHours);
 
-            Cell consecutiveShiftCell = consecutiveShiftsRow.getCell(i);
-            if(consecutiveShiftCell.getCellType()==CellType.BOOLEAN){
-                int nConsecutiveShifts = consecutiveShiftCell.getBooleanCellValue() ? 2 : 1;
-                employees.get(employeeIndex).setMaxConsecutiveShifts(nConsecutiveShifts);
+            Cell avoidDoubleWeekendShiftsCell = doubleWeekendShiftsRow.getCell(i);
+            if(avoidDoubleWeekendShiftsCell.getCellType()==CellType.BOOLEAN){
+                employees.get(employeeIndex).setAvoidDoubleWeekendShifts(avoidDoubleWeekendShiftsCell.getBooleanCellValue());
             }else{
                 throw new RuntimeException("Consecutive shift field has wrong cell type");
             }
@@ -450,7 +440,10 @@ public class ExcelHandler {
                 break;
             }
             if (cell.getCellType() == CellType.STRING){
-                employees.add(new Employee(cell.getStringCellValue()));
+                Employee employee = new Employee(cell.getStringCellValue());
+                //Todo move to settings for customization
+                employee.setMaxConsecutiveShifts(2);
+                employees.add(employee);
             }
             else{
                 throw new RuntimeException("Unexpected cell type for Employees. After Employees an empty cell need to follow!");
@@ -472,7 +465,36 @@ public class ExcelHandler {
         return true;
     }
 
+    public void writeSolvedShiftsToCopy(Shiftplan plan) {
+        //get column num of employee
+        Sheet sheet = this.workbook.getSheetAt(1);
+        Row header = sheet.getRow(0);
+        Map<String,Integer>employeeIndices = new HashMap<>();
+        for(Employee employee : plan.getEmployeeList()) {
+            for(Cell cell : header) {
+                if(stringCellEquals(cell,employee.getName())){
+                    employeeIndices.put(employee.getName(), cell.getColumnIndex());
+                }
+            }
+        }
+        for(ShiftAssignment shiftAssignment: plan.getShiftAssignmentList()){
+            int rowIndex = shiftAssignment.getShift().getTimeSlot().getId();
+            int cellIndex = employeeIndices.get(shiftAssignment.getEmployee().getName());
+            for(int i = this.shiftStartColumnNumber; i < this.shiftEndColumnNumber; i++){
+                Cell cell = sheet.getRow(rowIndex).getCell(i);
+                if(i != cellIndex){
+                    cell.setBlank();
+                }
+            }
+        }
+        String outputFileName = appendSuffix(this.originalFilePath,"Solved");
+        try (FileOutputStream fileOut = new FileOutputStream(outputFileName)) {
+            workbook.write(fileOut);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
+    }
 
     private static String appendSuffix(String filepath, String suffix) {
         int dot = filepath.lastIndexOf('.');

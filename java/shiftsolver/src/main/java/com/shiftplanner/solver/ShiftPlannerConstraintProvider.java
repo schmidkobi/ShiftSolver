@@ -11,8 +11,7 @@ import ai.timefold.solver.core.api.score.stream.ConstraintProvider;
 
 import java.util.stream.Collectors;
 
-import static ai.timefold.solver.core.api.score.stream.ConstraintCollectors.sumDuration;
-import static ai.timefold.solver.core.api.score.stream.ConstraintCollectors.toList;
+import static ai.timefold.solver.core.api.score.stream.ConstraintCollectors.*;
 import static ai.timefold.solver.core.api.score.stream.Joiners.equal;
 
 public class ShiftPlannerConstraintProvider implements ConstraintProvider {
@@ -24,7 +23,9 @@ public class ShiftPlannerConstraintProvider implements ConstraintProvider {
                 employeeNotAvailable(constraintFactory),
                 consecutiveShifts(constraintFactory),
                 unwantedPatterns(constraintFactory),
-                specialUnwantedPatterns(constraintFactory)
+                specialUnwantedPatterns(constraintFactory),
+                doubleWeekendShifts(constraintFactory),
+                fairWeekendShifts(constraintFactory)
         };
     }
 
@@ -101,5 +102,26 @@ public class ShiftPlannerConstraintProvider implements ConstraintProvider {
                 .filter((e,sq,tsps)->tsps.equals(new TimeSlotTypePattern(sq)))
                 .penalize(HardSoftScore.ONE_SOFT)
                 .asConstraint("Special unwanted pattern");
+    }
+
+    public Constraint doubleWeekendShifts(ConstraintFactory constraintFactory){
+        return constraintFactory.forEach(ShiftAssignment.class)
+                .filter(s->s.getEmployee() != null && s.getEmployee().isAvoidDoubleWeekendShifts())
+                .groupBy(ShiftAssignment::getEmployee,
+                        ConstraintCollectors.toConsecutiveSequences(s->s.getShiftTimeSlot().getId()))
+                .flattenLast(SequenceChain::getConsecutiveSequences)
+                .filter((e,sq)-> sq.getItems().stream().filter(s->s.getShiftTimeSlot().isWeekend()).count() >=2)
+                .penalize(HardSoftScore.ONE_SOFT)
+                .asConstraint("Double weekend shifts");
+    }
+
+    public Constraint fairWeekendShifts(ConstraintFactory constraintFactory){
+        return constraintFactory.forEach(ShiftAssignment.class)
+                .filter(s -> s.getEmployee() != null)
+                .groupBy(ShiftAssignment::getEmployee, sum(s->s.getShiftTimeSlot().isWeekend()?1:0))
+                .filter((employee, weekendCount) -> weekendCount == 0)
+                .penalize(HardSoftScore.ONE_SOFT)
+                .asConstraint("Fair weekend distribution");
+
     }
 }

@@ -1,22 +1,28 @@
 package com.shiftplanner.domain;
 
+import java.time.DayOfWeek;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 public class TimeSlot implements Comparable<TimeSlot> {
     private int id;
-    private Duration duration;
+    private Duration paidHours;
     private String type;
+    private LocalDateTime start;
+    private LocalDateTime end;
     private boolean isWeekend;
 
     public TimeSlot() {}
 
-    public TimeSlot(int id, Duration duration, String type) {
+    public TimeSlot(int id, Duration paidHours, String type, LocalDateTime start, LocalDateTime end) {
         this.id = id;
-        this.duration = duration;
+        this.paidHours = paidHours;
         this.type = type;
-        //this.isWeekend = isWeekend;
+        this.start = start;
+        this.end = end;
+        setWeekend();
     }
 
     public int getId() {
@@ -27,12 +33,12 @@ public class TimeSlot implements Comparable<TimeSlot> {
         this.id = id;
     }
 
-    public Duration getDuration() {
-        return duration;
+    public Duration getPaidHours() {
+        return paidHours;
     }
 
-    public void setDuration(Duration duration) {
-        this.duration = duration;
+    public void setPaidHours(Duration paidHours) {
+        this.paidHours = paidHours;
     }
 
     public String getType() {
@@ -44,9 +50,24 @@ public class TimeSlot implements Comparable<TimeSlot> {
     public boolean isWeekend() {
         return isWeekend;
     }
-    public void setWeekend(boolean weekend) {
-        isWeekend = weekend;
+    private void setWeekend() {
+        this.isWeekend = start.getDayOfWeek() == DayOfWeek.SATURDAY || start.getDayOfWeek() == DayOfWeek.SUNDAY || end.getDayOfWeek() == DayOfWeek.SATURDAY;
     }
+    public LocalDateTime getStart() {
+        return start;
+    }
+    public void setStart(LocalDateTime start) {
+        this.start = start;
+        setWeekend();
+    }
+    public LocalDateTime getEnd() {
+        return end;
+    }
+    public void setEnd(LocalDateTime end) {
+        this.end = end;
+        setWeekend();
+    }
+
 
     @Override
     public int compareTo(TimeSlot o) {

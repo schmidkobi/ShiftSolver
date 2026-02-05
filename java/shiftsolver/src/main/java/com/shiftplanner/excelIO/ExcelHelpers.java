@@ -4,6 +4,8 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 
+import java.time.LocalTime;
+
 public final class ExcelHelpers {
 
     public static boolean isEmpty(Row row){
@@ -24,6 +26,16 @@ public final class ExcelHelpers {
         }
         else{
             return false;
+        }
+    }
+
+    public static LocalTime getTime(Cell cell){
+        if(cell.getCellType() == CellType.NUMERIC){
+            double numeric = cell.getNumericCellValue();
+            return LocalTime.ofNanoOfDay((long)((numeric - Math.floor(numeric)) * 24 * 3600 * 1_000_000_000L));
+        }
+        else{
+            return null;
         }
     }
 

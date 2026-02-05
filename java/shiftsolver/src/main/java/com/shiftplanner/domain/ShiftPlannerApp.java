@@ -1,43 +1,46 @@
 package com.shiftplanner.domain;
 
-import ai.timefold.solver.core.api.domain.solution.ConstraintWeightOverrides;
 import ai.timefold.solver.core.api.score.Score;
+import ai.timefold.solver.core.api.score.ScoreExplanation;
+import ai.timefold.solver.core.api.score.analysis.ConstraintAnalysis;
+import ai.timefold.solver.core.api.score.analysis.ScoreAnalysis;
 import ai.timefold.solver.core.api.score.buildin.hardsoft.HardSoftScore;
-import ai.timefold.solver.core.api.solver.SolverStatus;
+import ai.timefold.solver.core.api.score.constraint.ConstraintMatchTotal;
+import ai.timefold.solver.core.api.score.constraint.ConstraintRef;
+import ai.timefold.solver.core.api.solver.SolutionManager;
 import com.shiftplanner.excelIO.ExcelHandler;
-import com.shiftplanner.solver.ShiftPlannerConstraintProvider;
 import ai.timefold.solver.core.api.solver.Solver;
 import ai.timefold.solver.core.api.solver.SolverFactory;
 import ai.timefold.solver.core.config.solver.SolverConfig;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 //todo: is it possible to stop when score threshold is met?
 
 public class ShiftPlannerApp {
     private static final Logger LOGGER = LoggerFactory.getLogger(ShiftPlannerApp.class);
+    private static volatile SolverFactory<Shiftplan> currentSolverFactory;
     private static volatile Solver<Shiftplan> currentSolver;
+    private static volatile Shiftplan currentSolution;
 
     public static void main(String[] args) {
-        String filePath = "okt25.xlsx";
+        String filePath = "template.xlsx";
         ExcelHandler handler = new ExcelHandler(filePath);
         Shiftplan plan = handler.ShiftPlanFromExcelFile();
         SolverConfig solverConfig = handler.getSolverConfig();
 
-        SolverFactory<Shiftplan> solverFactory = SolverFactory.create(solverConfig);
-        Solver<Shiftplan> solver = solverFactory.buildSolver();
+        currentSolverFactory = SolverFactory.create(solverConfig);
+        currentSolver = currentSolverFactory.buildSolver();
 
-        Shiftplan solution = solver.solve(plan);
-        handler.writeSolvedShiftsToCopy(solution);
-
-        printShiftPlan(solution);
+        currentSolution = currentSolver.solve(plan);
+        handler.writeSolvedShiftsToCopy(currentSolution);
+        printShiftPlan(currentSolution);
+        System.out.println(getCurrentScoreExplanation());
     }
 
     public static boolean solveShiftPlanFile(String filePath,  Consumer<String> bestScoreConsumer) {
@@ -45,18 +48,18 @@ public class ShiftPlannerApp {
             ExcelHandler handler = new ExcelHandler(filePath);
             Shiftplan plan = handler.ShiftPlanFromExcelFile();
             SolverConfig solverConfig = handler.getSolverConfig();
-            SolverFactory<Shiftplan> solverFactory = SolverFactory.create(solverConfig);
-            Solver<Shiftplan> solver = solverFactory.buildSolver();
+            currentSolverFactory = SolverFactory.create(solverConfig);
+            Solver<Shiftplan> solver = currentSolverFactory.buildSolver();
             solver.addEventListener(event -> {
                 Score score = event.getNewBestScore();
                 bestScoreConsumer.accept(score.toString());
             });
             currentSolver = solver;
-            Shiftplan solution = solver.solve(plan);
-            handler.writeSolvedShiftsToCopy(solution);
-        return solution != null;
+            currentSolution = solver.solve(plan);
+            handler.writeSolvedShiftsToCopy(currentSolution);
+        return currentSolution != null;
     } finally {
-        currentSolver = null;
+       currentSolver = null;
     }
     }
 
@@ -65,66 +68,17 @@ public class ShiftPlannerApp {
         if (s != null) s.terminateEarly();
     }
 
-    public static Shiftplan generateData(){
-        Shiftplan plan = new Shiftplan();
-
-        int nShifts = 60;
-        List<TimeSlot> timeSlots = new ArrayList<>(nShifts);
-        List<Shift> shifts = new ArrayList<Shift>(nShifts);
-        List<ShiftAssignment> shiftAssignments = new ArrayList<ShiftAssignment>(nShifts);
-
-        List<Employee> employees = new ArrayList<Employee>(3);
-
-        for (int i=0; i<nShifts; i++){
-            TimeSlot ts = new TimeSlot(i,Duration.ofHours(8),"TEST");
-            Shift shift = new Shift(ts);
-            ShiftAssignment shiftAssignment = new ShiftAssignment();
-            shiftAssignment.setShift(shift);
-            //shiftAssignment.setEmployee(employees.get(0));
-            timeSlots.add(ts);
-            shifts.add(shift);
-            shiftAssignments.add(shiftAssignment);
-        }
-
-        Employee max =new Employee("Max");
-        max.setMinMaxHours(new MinMaxHours(max,8, 240));
-        employees.add(max);
-
-        Employee lisa =new Employee("Lisa");
-        lisa.setMaxConsecutiveShifts(2);
-        lisa.setMinMaxHours(new MinMaxHours(lisa,20, 240));
-        employees.add(lisa);
-
-        Employee john =new Employee("John");
-        john.setMinMaxHours(new MinMaxHours(john,8, 80));
-        employees.add(john);
-
-
-        plan.setShiftList(shifts);
-        plan.setShiftAssignmentList(shiftAssignments);
-        plan.setEmployeeList(employees);
-
-        List<AvailableShift>availableShifts = new ArrayList<>(nShifts);
-        for (int i=0; i<nShifts; i++){
-            availableShifts.add(new AvailableShift(timeSlots.get(i),max));
-            if(true){
-                availableShifts.add(new AvailableShift(timeSlots.get(i),lisa));
-            }
-            if(i==2 || i==3 || i==8 || i==10 || i==15 || i==20){
-                availableShifts.add(new AvailableShift(timeSlots.get(i),john));
-            }
-        }
-        plan.setAvailableShiftList(availableShifts);
-        return plan;
-    }
-
     public static void printShiftPlan(Shiftplan plan){
         LOGGER.info("");
         List<ShiftAssignment> shiftAssignments = plan.getShiftAssignmentList();
         for (ShiftAssignment shiftAssignment : shiftAssignments){
             if(shiftAssignment.getEmployee()==null)
                 continue;
-            LOGGER.info("|"+ shiftAssignment.getShift().getTimeSlot().getId()+"("+shiftAssignment.getShift().getTimeSlot().getType()+") | "+ shiftAssignment.getEmployee().getName()+"|");
+            int id = shiftAssignment.getShift().getTimeSlot().getId();
+            String type = shiftAssignment.getShift().getTimeSlot().getType();
+            String name = shiftAssignment.getEmployee().getName();
+            String weekend = shiftAssignment.getShiftTimeSlot().isWeekend() ? "WE" : "";
+            LOGGER.info("|"+ id +"("+ type +")"+ weekend +" | "+ name +"|");
         }
 
         LOGGER.info("");
@@ -135,7 +89,7 @@ public class ShiftPlannerApp {
             float hours=shiftAssignments.stream()
                     .filter(s->s.getEmployee()!=null)
                     .filter(s->s.getEmployee().equals(employee))
-                    .map(s->s.getShift().getTimeSlot().getDuration().toMinutes()).reduce(0L,Long::sum)/ 60f;
+                    .map(s->s.getShift().getTimeSlot().getPaidHours().toMinutes()).reduce(0L,Long::sum)/ 60f;
             LOGGER.info("|"+ employee.getName()+"| ("
                     + employee.getMinMaxHours().getMin().toHours()+ "/"
                     + employee.getMinMaxHours().getMax().toHours()+ ") | "
@@ -143,5 +97,32 @@ public class ShiftPlannerApp {
         }
 
     }
+
+    public static String getCurrentScoreExplanation(){
+        if(currentSolverFactory == null) throw new RuntimeException("Could not get score explanation. No solver yet");
+        if(currentSolution == null)throw new RuntimeException("Could not get score explanation. No solution yet. Solve a problem first");
+        SolutionManager<Shiftplan, ?> solutionManager = SolutionManager.create(currentSolverFactory);
+        ScoreAnalysis<?> scoreAnalysis = solutionManager.analyze(currentSolution);
+        //ScoreExplanation<Shiftplan,?> scoreExplanation = solutionManager.explain(currentSolution);
+        return getExplantionString(scoreAnalysis);
+    }
+
+    private static String getExplantionString(ScoreAnalysis<?> scoreAnalysis) {
+        var constraintMap = scoreAnalysis.constraintMap();
+        StringBuilder sb = new StringBuilder();
+        constraintMap.forEach((constraintRef, constraintAnalysis) -> {
+            int matchCount = constraintAnalysis.matchCount();
+            String[] parts = constraintRef.constraintId().split("/");
+            String name = parts[parts.length - 1];
+            if (matchCount != 0) {
+                sb.append("- ").append(matchCount)
+                        .append("x ").append(name)
+                        .append(" | Score:").append(constraintAnalysis.score())
+                        .append(System.lineSeparator());
+            }
+        });
+        return sb.toString();
+    }
+
 
 }

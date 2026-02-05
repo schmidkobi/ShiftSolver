@@ -5,6 +5,7 @@ public class Employee {
     private MinMaxHours minMaxHours;
     private int maxConsecutiveShifts;
     private boolean avoidSpecialPatterns;
+    private boolean avoidDoubleWeekendShifts;
     public Employee() {}
 
 
@@ -41,5 +42,12 @@ public class Employee {
     }
     public void setAvoidSpecialPatterns(boolean avoidSpecialPatterns) {
         this.avoidSpecialPatterns = avoidSpecialPatterns;
+    }
+
+    public boolean isAvoidDoubleWeekendShifts() {
+        return avoidDoubleWeekendShifts;
+    }
+    public void setAvoidDoubleWeekendShifts(boolean avoidDoubleWeekendShifts) {
+        this.avoidDoubleWeekendShifts = avoidDoubleWeekendShifts;
     }
 }
